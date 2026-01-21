@@ -1,6 +1,7 @@
 from sqlalchemy import UniqueConstraint, create_engine, Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
-from datetime import datetime, timedelta
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
+from datetime import datetime
+from fastapi import FastAPI, Depends
 
 DATABASE_URL = "sqlite:///./app.db"
 
@@ -9,6 +10,8 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine)
 
 Base = declarative_base()
+
+app = FastAPI()
 
 
 class User(Base):
@@ -35,10 +38,10 @@ class Post(Base):
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     owner = relationship("User", back_populates="posts")
-    likes = relationship("Likes", back_populates="post")
+    likes = relationship("Like", back_populates="post")
 
-class Likes(Base):
-    __tablename__ = "likes"
+class Like(Base):
+    __tablename__ = "like"
     id = Column(Integer, primary_key=True)
     post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -48,42 +51,38 @@ class Likes(Base):
 
     post = relationship("Post", back_populates="likes")
 
-Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 
-def create_user(db, username, email, password):
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.post("/user")
+def create_user(username, password, email: str = None, db: Session = Depends(get_db)):
     user = User(username=username, email=email, password=password)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
-def create_post(db, user_id, score, course, caption=None):
+@app.post("/post")
+def create_post(user_id, score, course, caption=None,  db: Session = Depends(get_db)):
     post = Post(user_id=user_id, score=score, course=course, caption=caption)
     db.add(post)
     db.commit()
     db.refresh(post)
     return post
 
-def add_like(db, post_id, user_id):
-    like = Likes(post_id=post_id, user_id=user_id)
+@app.post("/like")
+def add_like(post_id, user_id, db: Session = Depends(get_db)):
+    like = Like(post_id=post_id, user_id=user_id)
     db.add(like)
     db.commit()
     db.refresh(like)
     return like
 
-
-db = SessionLocal()
-try:
-    create_user(db, "testuser", "test@email.com", "password")
-    create_post(db, 1, 65, "Shuttle Meadow", "eagle on 18")
-    create_user(db, "sean", "sean@email.com", "password")
-    add_like(db, 1, 2)
-    u = db.query(User).first()
-    two = db.query(User).filter(User.id == 2).first()
-    print(u.username, u.email, u.created_at, u.id, u.password, u.posts)
-    print(u.posts[0].score, u.posts[0].course, u.posts[0].caption, u.posts[0].created_at, u.posts[0].likes)
-finally:
-    db.close()
 
