@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>Create User</h2>
+
+    <input id="username" placeholder="username" />
+    <input id="password" type="password" placeholder="password" />
+    <input id="email" placeholder="email (optional)" />
+    <button id="createUserBtn">Create</button>
+
+    <pre id="output"></pre>
+
+    <script>
+      document.getElementById("createUserBtn").onclick = async () => {
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        const email = document.getElementById("email").value;
+
+        if (!username || !password) {
+          document.getElementById("output").textContent = "Error: Username and password are required";
+          return;
+        }
+
+        try {
+          const res = await fetch("/user", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              username: username,
+              password: password,
+              email: email || null
+            })
+          });
+
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            data = { detail: "Invalid response from server" };
+          }
+          
+          if (!res.ok) {
+            document.getElementById("output").textContent = "Error: " + (data.detail || "Failed to create user");
+          } else {
+            document.getElementById("output").textContent = "Success! User created:\n\n" + JSON.stringify(data, null, 2);
+            document.getElementById("username").value = "";
+            document.getElementById("password").value = "";
+            document.getElementById("email").value = "";
+          }
+        } catch (error) {
+          document.getElementById("output").textContent = "Error: " + error.message;
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -1,7 +1,12 @@
 from sqlalchemy import UniqueConstraint, create_engine, Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.staticfiles import StaticFiles
+from passlib.context import CryptContext
+from pydantic import BaseModel, EmailStr
+
 
 DATABASE_URL = "sqlite:///./app.db"
 
@@ -12,7 +17,6 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 app = FastAPI()
-
 
 class User(Base):
     __tablename__ = "users"
@@ -61,28 +65,109 @@ def get_db():
     finally:
         db.close()
 
+
+def hash_password(password: str) -> str:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    return pwd_context.hash(password)
+
+def verify_password(plain, hashed):
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    return pwd_context.verify(plain, hashed)
+
+
+# pydantic schemas
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    email: str | None = None
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    email: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class LogIn(BaseModel):
+    username: str
+    password: str
+
+class PostCreate(BaseModel):
+    user_id: int
+    score: int
+    course: str
+    caption: str | None = None
+
+class PostOut(BaseModel):
+    id: int
+    score: int
+    course: str
+    caption: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class LikeIn(BaseModel):
+    user_id: int
+    post_id: int
+
+class LikeOut(BaseModel):
+    id: int
+    user_id: int
+    post_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True  
+
 @app.post("/user")
-def create_user(username, password, email: str = None, db: Session = Depends(get_db)):
-    user = User(username=username, email=email, password=password)
+def create_user(info: UserCreate, db: Session = Depends(get_db)):
+    user = User(username = info.username, email = info.email, password=hash_password(info.password))
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Username or email already exists")
     db.refresh(user)
-    return user
+    return UserOut.from_orm(user)
 
 @app.post("/post")
-def create_post(user_id, score, course, caption=None,  db: Session = Depends(get_db)):
-    post = Post(user_id=user_id, score=score, course=course, caption=caption)
+def create_post(info: PostCreate,  db: Session = Depends(get_db)):
+    post = Post(user_id=info.user_id, score=info.score, course=info.course, caption=info.caption)
     db.add(post)
     db.commit()
     db.refresh(post)
     return post
 
 @app.post("/like")
-def add_like(post_id, user_id, db: Session = Depends(get_db)):
-    like = Like(post_id=post_id, user_id=user_id)
+def add_like(info: LikeIn, db: Session = Depends(get_db)):
+    like = Like(post_id=info.post_id, user_id=info.user_id)
     db.add(like)
     db.commit()
     db.refresh(like)
     return like
 
+@app.post("/unlike")
+def remove_like(info: LikeIn, db: Session = Depends(get_db)):
+    like = Like(post_id=info.post_id, user_id=info.user_id)
+    db.delete(like)
+    db.commit()
+    db.refresh(like)
+    return like
 
+
+@app.post("/login")
+def login(info: LogIn, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == info.username).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    if not verify_password(info.password, user.password):
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    return user
+    
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+ 
