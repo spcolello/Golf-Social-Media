@@ -27,7 +27,8 @@ const LoginPage = () => {
         setOutput("Error: " + (data.detail || "Login failed"));
         return;
       }
-
+    
+      localStorage.setItem("token", data.access_token)
       setOutput("Success! Logged in as:\n\n" + JSON.stringify(data, null, 2));
       setUsername("");
       setPassword("");

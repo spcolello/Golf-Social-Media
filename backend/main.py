@@ -5,10 +5,10 @@ from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
-from auth import create_access_token
-
+from .auth import create_access_token, decode_access_code
 
 
 DATABASE_URL = "sqlite:///./app.db"
@@ -78,6 +78,22 @@ def verify_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
 
 
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = decode_access_code(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    username: str = payload.get("user_id")
+
+    if username is None:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    return user
+
 # pydantic schemas
 class UserCreate(BaseModel):
     username: str
@@ -139,24 +155,24 @@ def create_user(info: UserCreate, db: Session = Depends(get_db)):
     return UserOut.from_orm(user)
 
 @app.post("/post")
-def create_post(info: PostCreate,  db: Session = Depends(get_db)):
-    post = Post(user_id=info.user_id, score=info.score, course=info.course, caption=info.caption)
+def create_post(info: PostCreate,  db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    post = Post(user_id=current_user.user_id, score=info.score, course=info.course, caption=info.caption)
     db.add(post)
     db.commit()
     db.refresh(post)
     return post
 
 @app.post("/like")
-def add_like(info: LikeIn, db: Session = Depends(get_db)):
-    like = Like(post_id=info.post_id, user_id=info.user_id)
+def add_like(info: LikeIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    like = Like(post_id=info.post_id, user_id=current_user.user_id)
     db.add(like)
     db.commit()
     db.refresh(like)
     return like
 
 @app.post("/unlike")
-def remove_like(info: LikeIn, db: Session = Depends(get_db)):
-    like = Like(post_id=info.post_id, user_id=info.user_id)
+def remove_like(info: LikeIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    like = Like(post_id=info.post_id, user_id=current_user.user_id)
     db.delete(like)
     db.commit()
     db.refresh(like)
@@ -173,7 +189,16 @@ def login(info: LogIn, db: Session = Depends(get_db)):
     
     token = create_access_token({"user_id": info.username})
 
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer"}  
+
+@app.get("/me")
+def read_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "created_at": current_user.created_at
+    }
     
 
 app.add_middleware(
