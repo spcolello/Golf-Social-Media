@@ -1,58 +1,53 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-  <body>
-    <h2>Create User</h2>
+    <body>
+        <h2>Log In</h2>
 
-    <input id="username" placeholder="username" />
-    <input id="password" type="password" placeholder="password" />
-    <input id="email" placeholder="email (optional)" />
-    <button id="createUserBtn">Create</button>
+        <input id ="username" placeholder="username" />
+        <input id ="password" type="password" placeholder="password" />
+        <button id = "loginBtn">Log In</button>
+        
+        <button id = "createUserBtn">Create Account</button>
 
-    <pre id="output"></pre>
+        <pre id = "output"></pre>
 
-    <script>
-      document.getElementById("createUserBtn").onclick = async () => {
-        const username = document.getElementById("username").value;
-        const password = document.getElementById("password").value;
-        const email = document.getElementById("email").value;
+        <script>
+            document.getElementById("loginBtn").onclick = async() => {
+                const username = document.getElementById("username").value;
+                const password = document.getElementById("password").value;
 
-        if (!username || !password) {
-          document.getElementById("output").textContent = "Error: Username and password are required";
-          return;
-        }
+                if (!username || !password) {
+                    document.getElementById("output").textContent = "Username and Password Required";
+                    return;
+                }
 
-        try {
-          const res = await fetch("/user", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              username: username,
-              password: password,
-              email: email || null
-            })
-          });
+                try {
+                    const res = await fetch("/login", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({username, password})
+                    });
 
-          let data;
-          try {
-            data = await res.json();
-          } catch (e) {
-            data = { detail: "Invalid response from server" };
-          }
-          
-          if (!res.ok) {
-            document.getElementById("output").textContent = "Error: " + (data.detail || "Failed to create user");
-          } else {
-            document.getElementById("output").textContent = "Success! User created:\n\n" + JSON.stringify(data, null, 2);
-            document.getElementById("username").value = "";
-            document.getElementById("password").value = "";
-            document.getElementById("email").value = "";
-          }
-        } catch (error) {
-          document.getElementById("output").textContent = "Error: " + error.message;
-        }
-      };
-    </script>
-  </body>
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        document.getElementById("output").textContent = "Error: " + (data.detail || "Login failed");
+                    } else {
+                        document.getElementById("output").textContent = "Success! Logged in as:\n\n" + JSON.stringify(data, null, 2);
+                        document.getElementById("username").value = "";
+                        document.getElementById("password").value = "";
+                        setTimeout(() => {
+                            window.location.href = "/feed.html";
+                        }, 1500);
+                    }
+                } catch (error) {
+                    document.getElementById("output").textContent = "Error: " + error.message;
+                }
+            }
+
+            document.getElementById("createUserBtn").onclick = async() => {
+                window.location.href = "/create-account.html";
+            }; 
+        </script>
+    </body>
 </html>

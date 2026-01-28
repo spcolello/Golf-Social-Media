@@ -4,8 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
+from auth import create_access_token
+
 
 
 DATABASE_URL = "sqlite:///./app.db"
@@ -167,7 +170,23 @@ def login(info: LogIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid username or password")
     if not verify_password(info.password, user.password):
         raise HTTPException(status_code=400, detail="Invalid username or password")
-    return user
     
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+    token = create_access_token({"user_id": info.username})
+
+    return {"access_token": token, "token_type": "bearer"}
+    
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
  
+if __name__ == "__main__":
+    # reset_db.py
+    from backend.main import Base, engine
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    print("Database schema dropped and recreated.")
