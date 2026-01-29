@@ -6,17 +6,25 @@ export default function Navbar() {
     fontWeight: isActive ? 700 : 400,
   });
 
+  const loggedIn = Boolean(localStorage.getItem("token"));
+
   return (
     <nav style={{ display: "flex", gap: 12, padding: 12 }}>
-      <NavLink to="/" style={linkStyle}>
-        Feed
-      </NavLink>
-      <NavLink to="/account" style={linkStyle}>
-        Account
-      </NavLink>
-      <NavLink to="/login" style={linkStyle}>
-        Log In
-      </NavLink>
-    </nav>
+        <NavLink to="/" style={linkStyle}>
+            Feed
+        </NavLink>
+
+
+        <NavLink to="/account" style={linkStyle}>
+            Account
+        </NavLink>
+
+
+        {!loggedIn && (
+            <NavLink to="/login" style={linkStyle}>
+            Log In
+            </NavLink>
+        )}
+        </nav>
   );
 }

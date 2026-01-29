@@ -79,7 +79,7 @@ def verify_password(plain, hashed):
 
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     payload = decode_access_code(token)
@@ -156,7 +156,7 @@ def create_user(info: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/post")
 def create_post(info: PostCreate,  db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    post = Post(user_id=current_user.user_id, score=info.score, course=info.course, caption=info.caption)
+    post = Post(user_id=current_user.id, score=info.score, course=info.course, caption=info.caption)
     db.add(post)
     db.commit()
     db.refresh(post)
@@ -164,7 +164,7 @@ def create_post(info: PostCreate,  db: Session = Depends(get_db), current_user: 
 
 @app.post("/like")
 def add_like(info: LikeIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    like = Like(post_id=info.post_id, user_id=current_user.user_id)
+    like = Like(post_id=info.post_id, user_id=current_user.id)
     db.add(like)
     db.commit()
     db.refresh(like)
@@ -172,11 +172,14 @@ def add_like(info: LikeIn, db: Session = Depends(get_db), current_user: User = D
 
 @app.post("/unlike")
 def remove_like(info: LikeIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    like = Like(post_id=info.post_id, user_id=current_user.user_id)
+    like = db.query(Like).filter(
+        Like.post_id == info.post_id,
+        Like.user_id == info.user_id
+    )
     db.delete(like)
     db.commit()
     db.refresh(like)
-    return like
+    return {"detail": "like removed"}
 
 
 @app.post("/login")

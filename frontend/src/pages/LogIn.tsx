@@ -29,13 +29,9 @@ const LoginPage = () => {
       }
     
       localStorage.setItem("token", data.access_token)
-      setOutput("Success! Logged in as:\n\n" + JSON.stringify(data, null, 2));
-      setUsername("");
-      setPassword("");
 
-      setTimeout(() => {
-        navigate("/feed");
-      }, 800);
+    navigate("/feed");
+
     } catch (err) {
       if (err instanceof Error) setOutput("Error: " + err.message);
     }
